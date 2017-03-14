@@ -22,6 +22,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'this_should_be_configured')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://localhost/ubike'
 app.config['SQLALCHEMY_NATIVE_UNICODE'] = 'utf-8'
+app.config['JSON_AS_ASCII'] = False
 db = SQLAlchemy(app)
 
 ###
@@ -58,14 +59,36 @@ def haversine(lon1, lat1, lon2, lat2):
 
 def find_stations(lat, lng):
     dist = {}
-    user_quadkey = str(quadkey.from_geo((lat, lng), 15))
+    result = []
+    user_quadkey = str(quadkey.from_geo((lat, lng), 14))
     stations = Station.query.filter(Station.quadkey.like('%s%%' % user_quadkey)).all()
     print user_quadkey, stations
     if len(stations) > 0:
-        for s in stations:
-            dist[s.sno] = haversine(float(lat), float(lng), s.lat, s.lng)
+    
+        sno_candidate = [x.sno for x in stations]
+        sbis = Sbi.query.filter(Sbi.sno.in_(sno_candidate)).all()
+        print sbis
+        for i in xrange(len(sbis)):   
+            sbi = sbis[i] 
+            if sbi.sbi > 0 and sbi.act > 0 :
+                detail = {}
+                detail['dist'] = haversine(float(lat), float(lng), stations[i].lat, stations[i].lng)
+                detail['sna'] = stations[i].sna
+                detail['sbi'] = sbi.sbi
+                detail['act'] = sbi.act
+                print sbi.sno
+                dist[sbi.sno] = detail
+    
+    
     print dist
-    return dist
+    if len(dist) >= 2:
+        tmp = sorted([i[1]['dist'] for i in dist.items()])[:2]
+        for k, v in dist.iteritems():
+            if v['dist'] in tmp:
+                result.append({'station':v['sna'], 'num_bike':v['sbi']})
+    else:
+        result = []
+    return result
 
 
 ###
@@ -92,6 +115,25 @@ class Station(db.Model):
 
     def __repr__(self):
         return '<Station %s>' % self.sno
+
+class Sbi(db.Model):
+    __tablename__ = "sbi"
+    sno = db.Column(db.String(10), primary_key=True)
+    sbi = db.Column(db.Integer)
+    act = db.Column(db.Integer)
+    mday = db.Column(db.BigInteger)
+
+    def __init__(self, sno, sbi, act, mday):
+        self.sno = sno
+        self.sbi = sbi
+        self.act = act
+        self.mday = mday
+
+    def __repr__(self):
+        return '<Station %s>' % self.sno    
+
+db.create_all()
+
 
 ###
 # Routing for your application.
@@ -120,7 +162,7 @@ def get_station():
     http = urllib3.PoolManager()
     
     try:
-        r = http.request('GET',url, timeout = 1.0)
+        r = http.request('GET',url, timeout = 5.0)
     except Exception as e:
         body['code'] = -3
         return jsonify(body)    
@@ -143,8 +185,12 @@ def get_station():
             if country != "Taiwan" or county != "Taipei City":
                 body['code'] = -2
             else:
-                find_stations(input['lat'], input['lng'])
-                body['code'] = 0
+                result = find_stations(input['lat'], input['lng'])
+                if result != []:
+                    body['code'] = 0
+                    body['result'] = result
+                else:
+                    body['code'] = 1
                     
     return jsonify(body)
 
@@ -152,15 +198,37 @@ def get_station():
 # Update DB
 ###
 
-@app.route('/update/', methods=['GET'])
-def update():
+@app.route('/update/stations/', methods=['GET'])
+def update_stations():
     data = download_ubike()
+    print 'download data'
     for k, v in data['retVal'].iteritems():
         if not db.session.query(Station).filter(Station.sno == v['sno']).count():
             reg = Station(v['sno'], v['sna'], v['lat'], v['lng'], 
                     str(quadkey.from_geo((v['lat'], v['lng']), 17)),  v['mday'])
             db.session.add(reg)
             db.session.commit()
+
+    updated = data['retVal']['0134']['mday']
+    return jsonify({'status': 'successed', 'updated': updated})
+
+@app.route('/update/sbi/', methods=['GET'])
+def update_sbi():
+    data = download_ubike()
+    for k, v in data['retVal'].iteritems():
+        if not db.session.query(Sbi).filter(Sbi.sno == v['sno']).count():
+            reg = Sbi(v['sno'], v['sbi'], v['act'], v['mday'])
+            db.session.add(reg)
+            db.session.commit()
+            print 'add %s' % v['sno']
+        else:
+            sbi = Sbi.query.filter_by(sno=v['sno']).first()
+            print sbi
+            sbi.sbi = v['sbi']
+            sbi.act = v['act']
+            sbi.mday = v['mday']
+            db.session.commit()
+            print 'update %s: %s' % (v['sno'], v['sbi'])
 
     updated = data['retVal']['0134']['mday']
     return jsonify({'status': 'successed', 'updated': updated})
