@@ -22,6 +22,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'this_should_be_configured')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://localhost/ubike'
 app.config['SQLALCHEMY_NATIVE_UNICODE'] = 'utf-8'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 app.config['JSON_AS_ASCII'] = False
 db = SQLAlchemy(app)
 
@@ -48,7 +49,6 @@ def haversine(lon1, lat1, lon2, lat2):
     """
     # convert decimal degrees to radians 
     lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
-
     # haversine formula 
     dlon = lon2 - lon1 
     dlat = lat2 - lat1 
@@ -60,11 +60,12 @@ def haversine(lon1, lat1, lon2, lat2):
 def find_stations(lat, lng):
     dist = {}
     result = []
-    user_quadkey = str(quadkey.from_geo((lat, lng), 14))
-    stations = Station.query.filter(Station.quadkey.like('%s%%' % user_quadkey)).all()
-    print user_quadkey, stations
-    if len(stations) > 0:
-    
+    unit = 14    
+ 
+    while len(dist) < 2 and unit > 10:
+        user_quadkey = str(quadkey.from_geo((lat, lng), unit))
+        stations = Station.query.filter(Station.quadkey.like('%s%%' % user_quadkey)).all() 
+    #print user_quadkey, stations
         sno_candidate = [x.sno for x in stations]
         sbis = Sbi.query.filter(Sbi.sno.in_(sno_candidate)).all()
         print sbis
@@ -78,16 +79,19 @@ def find_stations(lat, lng):
                 detail['act'] = sbi.act
                 print sbi.sno
                 dist[sbi.sno] = detail
-    
-    
-    print dist
-    if len(dist) >= 2:
-        tmp = sorted([i[1]['dist'] for i in dist.items()])[:2]
-        for k, v in dist.iteritems():
-            if v['dist'] in tmp:
-                result.append({'station':v['sna'], 'num_bike':v['sbi']})
-    else:
-        result = []
+        
+        print dist
+
+        if len(dist) >= 2:
+            tmp = sorted([i[1]['dist'] for i in dist.items()])[:2]
+            for k, v in dist.iteritems():
+                if v['dist'] in tmp:
+                    result.append({'station':v['sna'], 'num_bike':v['sbi']})
+        else:
+            pass
+
+        print len(dist)
+
     return result
 
 
@@ -139,22 +143,20 @@ db.create_all()
 # Routing for your application.
 ###
 
-body = {
-    "code": 0,
-    "result": []
-}
-
+def set_body(code, result=[]):
+    body = {}
+    body['code'] = code
+    body['result'] = result
+    return body
 
 @app.route('/v1/ubike-station/taipei', methods=['GET'])
 def get_station():
     input = request.args.to_dict() 
     if 'lat' not in input.keys() or 'lng' not in input.keys():
-        body['code'] = -1
-        return jsonify(body)
+        return jsonify(set_body(-1))
 
     elif input['lat'] is None or input['lng'] is None:
-        body['code'] = -1
-        return jsonify(body)
+        return jsonify(set_body(-1))
 
     latlng = str(input['lat'] + ',' + input['lng'])
     url = 'https://maps.googleapis.com/maps/api/geocode/json?latlng='
@@ -164,15 +166,15 @@ def get_station():
     try:
         r = http.request('GET',url, timeout = 5.0)
     except Exception as e:
-        body['code'] = -3
-        return jsonify(body)    
+        return jsonify(set_body(-3))    
     
     if r.status != 200:
-        body['code'] = -3
+        body = set_body(-3)
+    
     else:
         res = json.loads(r.data)
         if res['status'] != 'OK':
-            body['code'] = -1
+            body = set_body(-1)
         else:
             country = -1
             county = -1
@@ -183,14 +185,13 @@ def get_station():
                 pass
             print country, county
             if country != "Taiwan" or county != "Taipei City":
-                body['code'] = -2
+                body = set_body(-2)
             else:
                 result = find_stations(input['lat'], input['lng'])
                 if result != []:
-                    body['code'] = 0
-                    body['result'] = result
+                    body = set_body(0, result)
                 else:
-                    body['code'] = 1
+                    body = set_body(1)
                     
     return jsonify(body)
 
