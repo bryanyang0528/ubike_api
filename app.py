@@ -12,6 +12,7 @@ import urllib, urllib3
 import gzip
 import json
 import quadkey
+from math import radians, cos, sin, asin, sqrt
 from flask import Flask, jsonify, render_template, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 
@@ -20,6 +21,7 @@ from flask_sqlalchemy import SQLAlchemy
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'this_should_be_configured')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://localhost/ubike'
+app.config['SQLALCHEMY_NATIVE_UNICODE'] = 'utf-8'
 db = SQLAlchemy(app)
 
 ###
@@ -34,6 +36,37 @@ def download_ubike():
     f.close()
     data = json.loads(jdata)
     return data
+
+###
+# Find stations in the same quadkey
+###
+def haversine(lon1, lat1, lon2, lat2):
+    """
+    Calculate the great circle distance between two points 
+    on the earth (specified in decimal degrees)
+    """
+    # convert decimal degrees to radians 
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+
+    # haversine formula 
+    dlon = lon2 - lon1 
+    dlat = lat2 - lat1 
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * asin(sqrt(a)) 
+    r = 6371 # Radius of earth in kilometers. Use 3956 for miles
+    return c * r
+
+def find_stations(lat, lng):
+    dist = {}
+    user_quadkey = str(quadkey.from_geo((lat, lng), 15))
+    stations = Station.query.filter(Station.quadkey.like('%s%%' % user_quadkey)).all()
+    print user_quadkey, stations
+    if len(stations) > 0:
+        for s in stations:
+            dist[s.sno] = haversine(float(lat), float(lng), s.lat, s.lng)
+    print dist
+    return dist
+
 
 ###
 # Create DB Model
@@ -58,7 +91,7 @@ class Station(db.Model):
         self.mday = mday
 
     def __repr__(self):
-        return 'No: %s, Name: %s' % (self.sno, self. sna)
+        return '<Station %s>' % self.sno
 
 ###
 # Routing for your application.
@@ -110,6 +143,7 @@ def get_station():
             if country != "Taiwan" or county != "Taipei City":
                 body['code'] = -2
             else:
+                find_stations(input['lat'], input['lng'])
                 body['code'] = 0
                     
     return jsonify(body)
