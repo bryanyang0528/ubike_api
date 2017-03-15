@@ -190,7 +190,7 @@ def get_station():
             except Exception as e:
                 logging.warning('parsing county error: %s' % e)
                 pass
-            logging.info('country: %s, county: %s' % (coutry, county))
+            logging.info('country: %s, county: %s' % (country, county))
             if country != "Taiwan" or county != "Taipei City":
                 body = set_body(-2)
             else:
