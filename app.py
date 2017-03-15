@@ -20,11 +20,11 @@ from flask_heroku import Heroku
 
 
 app = Flask(__name__)
-#app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://localhost/ubike'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://localhost/ubike'
 app.config['SQLALCHEMY_NATIVE_UNICODE'] = 'utf-8'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 app.config['JSON_AS_ASCII'] = False
-heroku = Heroku(app)
+#heroku = Heroku(app)
 db = SQLAlchemy(app)
 logging.basicConfig(level=logging.INFO,format='%(asctime)s %(levelname)s %(message)s')
 ###
@@ -70,14 +70,15 @@ def find_stations(lat, lng):
         stations = Station.query.filter(Station.quadkey.like('%s%%' % user_quadkey)).all() 
     #print user_quadkey, stations
         sno_candidate = [x.sno for x in stations]
-        sbis = Sbi.query.filter(Sbi.sno.in_(sno_candidate)).all()
+        sbis = Sbi.query.join(Station, Sbi.sno == Station.sno).\
+                add_columns(Sbi.sno, Sbi.act, Sbi.sbi, Station.sna, Station.lat, Station.lng).\
+                filter(Sbi.sno.in_(sno_candidate)).all()
         logging.debug('sbis: %s', sbis)
-        for i in xrange(len(sbis)):   
-            sbi = sbis[i] 
+        for sbi in sbis:   
             if sbi.sbi > 0 and sbi.act > 0 :
                 detail = {}
-                detail['dist'] = haversine(float(lat), float(lng), stations[i].lat, stations[i].lng)
-                detail['sna'] = stations[i].sna
+                detail['dist'] = haversine(float(lat), float(lng), sbi.lat, sbi.lng)
+                detail['sna'] = sbi.sna
                 detail['sbi'] = sbi.sbi
                 detail['act'] = sbi.act
                 dist[sbi.sno] = detail
