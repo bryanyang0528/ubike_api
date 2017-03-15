@@ -181,17 +181,10 @@ def get_station():
         res = json.loads(r.data)
         if res['status'] != 'OK':
             body = set_body(-1)
-        else:
-            country = -1
-            county = -1
-            country = res["results"][-1]["address_components"][0]["long_name"]
-            try:
-                county = res["results"][0]["address_components"][-3]["long_name"]
-            except Exception as e:
-                logging.warning('parsing county error: %s' % e)
-                pass
-            logging.info('country: %s, county: %s' % (country, county))
-            if country != "Taiwan" or county != "Taipei City":
+        else: 
+            info = [i['long_name'] for i in res['results'][0]["address_components"]]
+            logging.info('geo_info: %s' % info)
+            if "Taiwan" not in info or "Taipei City" not in info:
                 body = set_body(-2)
             else:
                 result = find_stations(input['lat'], input['lng'])
