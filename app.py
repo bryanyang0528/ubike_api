@@ -15,7 +15,7 @@ import quadkey
 from math import radians, cos, sin, asin, sqrt
 from flask import Flask, jsonify, render_template, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
-
+from flask.ext.heroku import Heroku
 
 
 app = Flask(__name__)
