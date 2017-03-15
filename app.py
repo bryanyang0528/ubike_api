@@ -63,7 +63,7 @@ def find_stations(lat, lng):
     result = []
     unit = 14    
  
-    while len(dist) < 2 and unit >= 10:
+    while len(dist) < 2 and unit >= 5:
         user_quadkey = str(quadkey.from_geo((lat, lng), unit))
         print user_quadkey
         stations = Station.query.filter(Station.quadkey.like('%s%%' % user_quadkey)).all() 
