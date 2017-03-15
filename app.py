@@ -12,6 +12,7 @@ import urllib, urllib3
 import gzip
 import json
 import quadkey
+import logging
 from math import radians, cos, sin, asin, sqrt
 from flask import Flask, jsonify, render_template, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
@@ -20,13 +21,13 @@ from flask_heroku import Heroku
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'this_should_be_configured')
-#app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://localhost/ubike'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://localhost/ubike'
 app.config['SQLALCHEMY_NATIVE_UNICODE'] = 'utf-8'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 app.config['JSON_AS_ASCII'] = False
-heroku = Heroku(app)
+#heroku = Heroku(app)
 db = SQLAlchemy(app)
-
+logging.basicConfig(level=logging.INFO,format='%(asctime)s %(levelname)s %(message)s')
 ###
 # donwnload ubike data
 ###
@@ -34,6 +35,7 @@ db = SQLAlchemy(app)
 def download_ubike():
     url = "https://tcgbusfs.blob.core.windows.net/blobyoubike/YouBikeTP.gz"
     urllib.urlretrieve(url, "data/ubike.gz")
+    logging.info('download ubike file')
     f = gzip.open('data/ubike.gz', 'r')
     jdata = f.read()
     f.close()
@@ -65,12 +67,12 @@ def find_stations(lat, lng):
  
     while len(dist) < 2 and unit >= 5:
         user_quadkey = str(quadkey.from_geo((lat, lng), unit))
-        print user_quadkey
+        logging.debug('user_quadkey: %s' % user_quadkey)
         stations = Station.query.filter(Station.quadkey.like('%s%%' % user_quadkey)).all() 
     #print user_quadkey, stations
         sno_candidate = [x.sno for x in stations]
         sbis = Sbi.query.filter(Sbi.sno.in_(sno_candidate)).all()
-        print sbis
+        logging.debug('sbis: %s', sbis)
         for i in xrange(len(sbis)):   
             sbi = sbis[i] 
             if sbi.sbi > 0 and sbi.act > 0 :
@@ -79,10 +81,9 @@ def find_stations(lat, lng):
                 detail['sna'] = stations[i].sna
                 detail['sbi'] = sbi.sbi
                 detail['act'] = sbi.act
-                print sbi.sno
                 dist[sbi.sno] = detail
         
-        print dist
+        logging.debug('dist: ' % dist)
 
         if len(dist) >= 2:
             tmp = sorted([i[1]['dist'] for i in dist.items()])[:2]
@@ -91,9 +92,8 @@ def find_stations(lat, lng):
                     result.append({'station':v['sna'], 'num_bike':v['sbi']})
         else:
             pass
-
-        print len(dist), unit
-        unit -= 1 
+        unit -= 1
+        logging.debug('unit: %s' % unit) 
 
     return result
 
@@ -142,7 +142,7 @@ class Sbi(db.Model):
 try:
     db.create_all()
 except Exception as e:
-    print e
+    logging.warning('create db failed: %s' % e)
 
 
 ###
@@ -172,6 +172,7 @@ def get_station():
     try:
         r = http.request('GET',url, timeout = 5.0)
     except Exception as e:
+        logging.warning('get google api error: %' % e)
         return jsonify(set_body(-3))    
     
     if r.status != 200:
@@ -188,8 +189,9 @@ def get_station():
             try:
                 county = res["results"][0]["address_components"][-3]["long_name"]
             except Exception as e:
+                logging.warning('parsing county error: %s' % e)
                 pass
-            print country, county
+            logging.info('country: %s, county: %s' % (coutry, county))
             if country != "Taiwan" or county != "Taipei City":
                 body = set_body(-2)
             else:
@@ -208,7 +210,6 @@ def get_station():
 @app.route('/update/stations/', methods=['GET'])
 def update_stations():
     data = download_ubike()
-    print 'download data'
     for k, v in data['retVal'].iteritems():
         if not db.session.query(Station).filter(Station.sno == v['sno']).count():
             reg = Station(v['sno'], v['sna'], v['lat'], v['lng'], 
@@ -227,15 +228,14 @@ def update_sbi():
             reg = Sbi(v['sno'], v['sbi'], v['act'], v['mday'])
             db.session.add(reg)
             db.session.commit()
-            print 'add %s' % v['sno']
+            logging.info('add %s' % v['sno'])
         else:
             sbi = Sbi.query.filter_by(sno=v['sno']).first()
-            print sbi
             sbi.sbi = v['sbi']
             sbi.act = v['act']
             sbi.mday = v['mday']
             db.session.commit()
-            print 'update %s: %s' % (v['sno'], v['sbi'])
+            logging.info('update %s: %s' % (v['sno'], v['sbi']))
 
     updated = data['retVal']['0134']['mday']
     return jsonify({'status': 'successed', 'updated': updated})
