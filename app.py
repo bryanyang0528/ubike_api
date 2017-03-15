@@ -20,10 +20,11 @@ from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'this_should_be_configured')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://localhost/ubike'
+#app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://localhost/ubike'
 app.config['SQLALCHEMY_NATIVE_UNICODE'] = 'utf-8'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 app.config['JSON_AS_ASCII'] = False
+heroku = Heroku(app)
 db = SQLAlchemy(app)
 
 ###
