@@ -137,7 +137,10 @@ class Sbi(db.Model):
     def __repr__(self):
         return '<Station %s>' % self.sno    
 
-db.create_all()
+try:
+    db.create_all()
+except Exception as e:
+    print e
 
 
 ###
