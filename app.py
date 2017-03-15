@@ -184,7 +184,7 @@ def get_station():
             county = -1
             country = res["results"][-1]["address_components"][0]["long_name"]
             try:
-                county = res["results"][0]["address_components"][4]["long_name"]
+                county = res["results"][0]["address_components"][-3]["long_name"]
             except Exception as e:
                 pass
             print country, county
