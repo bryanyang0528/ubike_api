@@ -62,6 +62,13 @@ class TestApp(unittest.TestCase):
         self.assertEqual(len(res['result']), 2)
         self.assertEqual(rv.status_code, 200)
 
+    def test_api_in_north_Taipei(self):
+        rv = self.app.get('v1/ubike-station/taipei?lat=25.194153&lng=121.568509')
+        res = json.loads(rv.data)
+        self.assertEqual(res['code'], 0)
+        self.assertEqual(len(res['result']), 2)
+        self.assertEqual(rv.status_code, 200)
+
 
 
 if __name__ == '__main__':
