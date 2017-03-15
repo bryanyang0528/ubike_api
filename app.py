@@ -92,6 +92,7 @@ def find_stations(lat, lng):
             pass
 
         print len(dist)
+        unit -= 1 
 
     return result
 
