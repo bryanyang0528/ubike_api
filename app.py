@@ -20,11 +20,11 @@ from flask_heroku import Heroku
 
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://localhost/ubike'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL']
 app.config['SQLALCHEMY_NATIVE_UNICODE'] = 'utf-8'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 app.config['JSON_AS_ASCII'] = False
-#heroku = Heroku(app)
+heroku = Heroku(app)
 db = SQLAlchemy(app)
 logging.basicConfig(level=logging.INFO,format='%(asctime)s %(levelname)s %(message)s')
 ###
