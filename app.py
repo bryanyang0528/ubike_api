@@ -163,6 +163,9 @@ def get_station():
     elif input['lat'] is None or input['lng'] is None:
         return jsonify(set_body(-1))
 
+    elif abs(float(input['lat'])) > 90 or abs(float(input['lng'])) > 180:
+        return jsonify(set_body(-1))        
+
     latlng = str(input['lat'] + ',' + input['lng'])
     url = 'https://maps.googleapis.com/maps/api/geocode/json?latlng='
     url = url + latlng
@@ -180,7 +183,7 @@ def get_station():
     else:
         res = json.loads(r.data)
         if res['status'] != 'OK':
-            body = set_body(-1)
+            body = set_body(-2)
         else: 
             info = [i['long_name'] for i in res['results'][0]["address_components"]]
             logging.info('geo_info: %s' % info)
