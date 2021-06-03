@@ -15,7 +15,7 @@ psycopg2==2.7.1
 pyparsing==2.2.0
 pytz==2016.10
 quadkey==0.0.5
-requests==2.13.0
+requests==2.20.0
 six==1.10.0
 SQLAlchemy==1.1.6
 tzlocal==1.3
